@@ -1,0 +1,25 @@
+{
+    "name": "com.unity.local-material-variants",
+    "displayName": "Local Material Variants",
+    "version": "0.0.1-preview.1",
+    "unity": "6000.0.23",
+    "description": "A MeshRenderer Editor handling material variants stored in the scene or prefab",
+    "author": {
+        "name": "Fred Moreau",
+        "email": "frederic.moreau@unity3d.com",
+        "url": "https://www.unity3d.com"
+    },
+    "keywords": [
+        "unity",
+        "editor",
+        "material",
+        "variant",
+        "override"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git@github.com:UserName/Repository.git"
+    },
+    "samples": [],
+    "hideInEditor": false
+}
