@@ -2,7 +2,7 @@
     "name": "com.unity.local-material-variants",
     "displayName": "Local Material Variants",
     "version": "0.0.1-preview.1",
-    "unity": "6000.0.23",
+    "unity": "6000.0",
     "description": "A MeshRenderer Editor handling material variants stored in the scene or prefab",
     "author": {
         "name": "Fred Moreau",
@@ -18,7 +18,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git@github.com:UserName/Repository.git"
+        "url": "git@github.com:FredMoreau/com.unity.local-material-variants.git"
     },
     "samples": [],
     "hideInEditor": false
