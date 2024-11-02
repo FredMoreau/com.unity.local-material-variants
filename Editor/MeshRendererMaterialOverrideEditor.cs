@@ -6,66 +6,71 @@ using UnityEditor;
 // TODO : override/revert in children, siblings and parents
 // TODO : prefabs workflow
 
-[CustomEditor(typeof(MeshRenderer))]
-public class MeshRendererMaterialOverrideEditor : Editor
+namespace Unity.LocalMaterialVariants.Editor
 {
-    private static bool ExpandOverrides
+    using Editor = UnityEditor.Editor;
+
+    [CustomEditor(typeof(MeshRenderer))]
+    public class MeshRendererMaterialOverrideEditor : Editor
     {
-        get => EditorPrefs.GetBool("MeshRendererMaterialOverrideEditor.ExpandOverrides", true);
-        set => EditorPrefs.SetBool("MeshRendererMaterialOverrideEditor.ExpandOverrides", value);
-    }
-
-    private Editor defaultEditor;
-    private MeshRenderer meshRenderer;
-
-    private void OnEnable()
-    {
-        defaultEditor = CreateEditor(targets, Type.GetType("UnityEditor.MeshRendererEditor, UnityEditor"));
-        meshRenderer = (MeshRenderer)target;
-    }
-
-    public override void OnInspectorGUI()
-    {
-        var sharedMaterials = meshRenderer.sharedMaterials;
-
-        ExpandOverrides = EditorGUILayout.BeginFoldoutHeaderGroup(ExpandOverrides, "Overrides");
-        if (ExpandOverrides)
+        private static bool ExpandOverrides
         {
-            EditorGUI.BeginChangeCheck();
-            for (int i = 0; i < sharedMaterials.Length; ++i)
+            get => EditorPrefs.GetBool("MeshRendererMaterialOverrideEditor.ExpandOverrides", true);
+            set => EditorPrefs.SetBool("MeshRendererMaterialOverrideEditor.ExpandOverrides", value);
+        }
+
+        private Editor defaultEditor;
+        private MeshRenderer meshRenderer;
+
+        private void OnEnable()
+        {
+            defaultEditor = CreateEditor(targets, Type.GetType("UnityEditor.MeshRendererEditor, UnityEditor"));
+            meshRenderer = (MeshRenderer)target;
+        }
+
+        public override void OnInspectorGUI()
+        {
+            var sharedMaterials = meshRenderer.sharedMaterials;
+
+            ExpandOverrides = EditorGUILayout.BeginFoldoutHeaderGroup(ExpandOverrides, "Overrides");
+            if (ExpandOverrides)
             {
-                if (sharedMaterials[i] == null)
-                    continue;
-
-                bool isOverriden = string.IsNullOrEmpty(AssetDatabase.GetAssetPath(sharedMaterials[i]));
-
                 EditorGUI.BeginChangeCheck();
-                bool overrideMaterial = GUILayout.Toggle(isOverriden, isOverriden ? sharedMaterials[i].parent.name : sharedMaterials[i].name, EditorStyles.miniButton);
-                if (EditorGUI.EndChangeCheck())
+                for (int i = 0; i < sharedMaterials.Length; ++i)
                 {
-                    Undo.RecordObject(meshRenderer, isOverriden ? "Revert Renderer Material" : "Override Renderer Material");
-                    if (overrideMaterial)
+                    if (sharedMaterials[i] == null)
+                        continue;
+
+                    bool isOverriden = string.IsNullOrEmpty(AssetDatabase.GetAssetPath(sharedMaterials[i]));
+
+                    EditorGUI.BeginChangeCheck();
+                    bool overrideMaterial = GUILayout.Toggle(isOverriden, isOverriden ? sharedMaterials[i].parent.name : sharedMaterials[i].name, EditorStyles.miniButton);
+                    if (EditorGUI.EndChangeCheck())
                     {
-                        var variant = new Material(sharedMaterials[i]);
-                        variant.name = $"{meshRenderer.gameObject.name}.{sharedMaterials[i].name}";
-                        variant.parent = sharedMaterials[i];
-                        sharedMaterials[i] = variant;
-                    }
-                    else
-                    {
-                        if (sharedMaterials[i].parent == null)
-                            Debug.LogWarning("Local Material has no parent.");
+                        Undo.RecordObject(meshRenderer, isOverriden ? "Revert Renderer Material" : "Override Renderer Material");
+                        if (overrideMaterial)
+                        {
+                            var variant = new Material(sharedMaterials[i]);
+                            variant.name = $"{meshRenderer.gameObject.name}.{sharedMaterials[i].name}";
+                            variant.parent = sharedMaterials[i];
+                            sharedMaterials[i] = variant;
+                        }
                         else
-                            sharedMaterials[i] = sharedMaterials[i].parent;
+                        {
+                            if (sharedMaterials[i].parent == null)
+                                Debug.LogWarning("Local Material has no parent.");
+                            else
+                                sharedMaterials[i] = sharedMaterials[i].parent;
+                        }
                     }
                 }
+
+                if (EditorGUI.EndChangeCheck())
+                    meshRenderer.sharedMaterials = sharedMaterials;
             }
+            EditorGUILayout.EndFoldoutHeaderGroup();
 
-            if (EditorGUI.EndChangeCheck())
-                meshRenderer.sharedMaterials = sharedMaterials;
+            defaultEditor.OnInspectorGUI();
         }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-
-        defaultEditor.OnInspectorGUI();
     }
 }
