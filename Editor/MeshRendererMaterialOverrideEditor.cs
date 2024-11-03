@@ -1,9 +1,11 @@
 using System;
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
+using System.Linq;
 
 // TODO : add a special drag and drop to assign local variants
-// TODO : override/revert in children, siblings and parents
+// DONE : override/revert in children, siblings and parents
 // TODO : prefabs workflow
 
 namespace Unity.LocalMaterialVariants.Editor
@@ -42,61 +44,115 @@ namespace Unity.LocalMaterialVariants.Editor
 
         private void MaterialOverridesGUI()
         {
-            var sharedMaterials = meshRenderer.sharedMaterials;
-
-            EditorGUI.BeginChangeCheck();
-
-            for (int i = 0; i < sharedMaterials.Length; ++i)
+            for (int i = 0; i < meshRenderer.sharedMaterials.Length; ++i)
             {
-                if (sharedMaterials[i] == null)
+                if (meshRenderer.sharedMaterials[i] == null)
                     continue;
 
-                MaterialGUI(ref sharedMaterials[i]);
+                MaterialGUI(i);
             }
-
-            if (EditorGUI.EndChangeCheck())
-                meshRenderer.sharedMaterials = sharedMaterials;
         }
 
-        private void MaterialGUI(ref Material material)
+        private void ToggleMaterialOverride(int index, bool overrideMaterial)
         {
-            bool isOverriden = IsLocal(material);
+            var references = GetMaterialReferences(meshRenderer.transform.root, meshRenderer.sharedMaterials[index]);
+            var overrideAll = references.Count > 1 && EditorUtility.DisplayDialog("Apply", string.Format("The same material is used in other renderers of the hierarchy.\nDo you want to {0} them too.", overrideMaterial ? "override" : "revert"), "all", "selection only");
 
-            EditorGUI.BeginChangeCheck();
-            bool overrideMaterial = GUILayout.Toggle(isOverriden, isOverriden ? material.parent.name : material.name, EditorStyles.miniButton);
-            if (EditorGUI.EndChangeCheck())
+            var newMaterial = overrideMaterial ? meshRenderer.sharedMaterials[index].CreateVariant(meshRenderer.transform.root.name) :
+                meshRenderer.sharedMaterials[index].parent?? meshRenderer.sharedMaterials[index];
+
+            if (overrideAll)
             {
-                Undo.RecordObject(meshRenderer, isOverriden ? "Revert Renderer Material" : "Override Renderer Material");
-                if (overrideMaterial)
-                {
-                    MakeLocalVariant(ref material, meshRenderer.gameObject.name);
-                }
-                else
-                {
-                    RevertToParent(ref material);
-                }
+                Undo.RecordObjects(references.Keys.ToArray(), overrideMaterial? "Override Materials" : "Revert Materials");
+                foreach (var kvp in references)
+                    kvp.Key.ReplaceMaterials(kvp.Value.ToArray(), newMaterial);
+            }
+            else
+            {
+                Undo.RecordObject(meshRenderer, overrideMaterial ? "Override Material" : "Revert Material");
+                meshRenderer.ReplaceMaterial(index, newMaterial);
             }
         }
 
-        private static void RevertToParent(ref Material material)
+        private void MaterialGUI(int index)
         {
-            if (material.parent == null)
-                Debug.LogWarning("Local Material has no parent.");
-            else
-                material = material.parent;
+            EditorGUILayout.BeginHorizontal();
+            if (MaterialToggle(meshRenderer.sharedMaterials[index], out bool overrideMaterial))
+                ToggleMaterialOverride(index, overrideMaterial);
+
+            if (EditorGUILayout.DropdownButton(new GUIContent(""), FocusType.Keyboard, GUILayout.Width(20f)))
+            {
+                GenericMenu menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Shader"), false, DoSomething, index);
+                menu.ShowAsContext();
+            }
+            EditorGUILayout.EndHorizontal();
         }
 
-        private static void MakeLocalVariant(ref Material material, string prefix = default)
+        void DoSomething(object index)
+        {
+            Debug.Log(meshRenderer.sharedMaterials[(int)index].shader.name);
+        }
+
+        private bool MaterialToggle(Material material, out bool overrideMaterial)
+        {
+            bool isOverriden = material.IsLocal();
+            EditorGUI.BeginChangeCheck();
+            overrideMaterial = GUILayout.Toggle(isOverriden, isOverriden ? material.parent.name : material.name, EditorStyles.miniButton);
+            return EditorGUI.EndChangeCheck();
+        }
+
+        private Dictionary<MeshRenderer, List<int>> GetMaterialReferences(Transform root, Material material)
+        {
+            Dictionary<MeshRenderer, List<int>> dict = new();
+
+            var allRenderers = root.GetComponentsInChildren<MeshRenderer>(true);
+            foreach (var renderer in allRenderers)
+            {
+                if (Array.IndexOf(renderer.sharedMaterials, material) == -1)
+                    continue;
+                
+                dict.Add(renderer, new List<int>());
+                for (int i = 0; i < renderer.sharedMaterials.Length; i++)
+                {
+                    if (renderer.sharedMaterials[i] == material)
+                        dict[renderer].Add(i);
+                }
+            }
+
+            return dict;
+        }
+    }
+
+    internal static class Extensions
+    {
+        internal static Material CreateVariant(this Material material, string prefix = default)
         {
             var variant = new Material(material);
             variant.name = $"{prefix}.{material.name}";
             variant.parent = material;
             material = variant;
+            return variant;
         }
 
-        private static bool IsLocal(Material material)
+        internal static bool IsLocal(this Material material)
         {
             return string.IsNullOrEmpty(AssetDatabase.GetAssetPath(material));
+        }
+        
+        internal static void ReplaceMaterial(this Renderer renderer, int index, Material material)
+        {
+            var sharedMaterials = renderer.sharedMaterials;
+            sharedMaterials[index] = material;
+            renderer.sharedMaterials = sharedMaterials;
+        }
+
+        internal static void ReplaceMaterials(this Renderer renderer, int[] indices, Material material)
+        {
+            var sharedMaterials = renderer.sharedMaterials;
+            for (int i = 0; i < indices.Length; i++)
+                sharedMaterials[indices[i]] = material;
+            renderer.sharedMaterials = sharedMaterials;
         }
     }
 }
